@@ -27,9 +27,9 @@ void setup() {
   // LEDs
   pinMode(3, OUTPUT); // BREMSLICHT
   pinMode(5, OUTPUT); // FRONTLICHT
-  pinMode(BLINKER_LINKS, OUTPUT); // HUPE
-  pinMode(BLINKER_RECHTS, OUTPUT); // BLINKER LINKS
-  pinMode(8, OUTPUT); // BLINKER RECHTS
+  pinMode(6, OUTPUT); // HUPE
+  pinMode(BLINKER_LINKS, OUTPUT); // BLINKER LINKS
+  pinMode(BLINKER_RECHTS, OUTPUT); // BLINKER RECHTS
 
   // TEMPSENSOR + IR
   Serial.begin(9600);
@@ -42,9 +42,20 @@ void setup() {
 // put your main code here, to run repeatedly:
 void loop() {
   readRemote();
+  handleBlinkers();
+  //startServo();
+
+  /* Serial.print("Temperature: ");
+  Serial.print(measureTemp());
+  Serial.println(" °C"); */
+
+  /* Serial.print("Lightlevel: ");
+  Serial.println(measureLight()); */
+
+
   /* digitalWrite(6, HIGH);
   delay(4000);
-  digitalWrite(8, HIGH);
+  digitalWrite(6, LOW);
   delay(1000); */
 }
 
@@ -61,28 +72,22 @@ void readRemote() {
 
         case 68:
           Serial.println("LEFT");
-          if (blinkerON) {
-            blinkerON = false;
-          } else {
-            blink(BLINKER_LINKS)
-            blinkerON = true;
-          }
+          blinkerRON = false;
+          blinkerLON = !blinkerLON;
           break;
 
         // INITIATE ALL
         case 64:
           Serial.println("OK");
-          wave();
+          if (!blinkerLON && !blinkerRON) {
+            wave();
+          }
           break;
 
         case 67:
           Serial.println("RIGHT");
-          if (blinkerRON) {
-            blinkerON = false;
-          } else if (!blinkerROn && !blinkerLON) {
-            blink(BLINKER_RECHTS)
-            blinkerRON = true;
-          }
+          blinkerLON = false;
+          blinkerRON = !blinkerRON;
           break;
 
         case 21:
@@ -138,13 +143,28 @@ void readRemote() {
           break;
 
         default:
-          Serial.println("WARNING: undefined key:");
+          //Serial.println("WARNING: undefined key:");
           break;
       }
       //Serial.println(IrReceiver.decodedIRData.command);
     }
     IrReceiver.resume();
   }
+}
+
+void handleBlinkers() {
+  if (blinkerLON) {
+    digitalWrite(BLINKER_RECHTS, LOW);
+    blink(BLINKER_LINKS);
+
+  } else if (blinkerRON) {
+    digitalWrite(BLINKER_LINKS, LOW);
+    blink(BLINKER_RECHTS);
+
+  }
+  /* if (!blinkerRON && !blinkerLON) {
+    Serial.println("both blinkers off");
+  } */
 }
 
 void blink(int LEDPin) {
@@ -156,10 +176,10 @@ void blink(int LEDPin) {
 
 void wave() {
   // WAVE AROUND THE FAKE CAR
-  for (int i = 0; i < sizeof(LEDPins); i++) {
-    digitalWrite(LEDPins[i], HIGH);
+  for (int pin : LEDPins) {
+    digitalWrite(pin, HIGH);
     delay(100);
-    digitalWrite(LEDPins[i], LOW);
+    digitalWrite(pin, LOW);
   }
 }
 
@@ -190,19 +210,12 @@ float measureTemp() {
   float adcInmV= adcVal * (ADC_VREF_mV / ADC_RESOLUTION);
   float tempC = adcInmV / 10;
 
-  //Serial.print("Temperature: ");
-  //Serial.print(tempC);
-  //Serial.println(" °C");
-
   return tempC;
 }
 
 int measureLight() {
   // LICHTSENSOR
   int lightlevel = analogRead(LIGHT_PIN);
-
-  //Serial.print("Lightlevel: ");
-  //Serial.println(lightlevel);
 
   /* if(lightlevel < 300)
     Serial.println("It's nighttime.");
