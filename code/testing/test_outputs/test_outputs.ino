@@ -1,6 +1,7 @@
 
 #include <IRremote.h> //LIB FOR REMOTE
 #include <Servo.h>
+#include <LedControl.h>
 
 #define POTENTIOMETER A0
 #define TEMP_PIN A1
@@ -22,6 +23,8 @@ int LEDPins[] = {3, 5, 6, 7, 8};
 bool blinkerLON = false;
 bool blinkerRON = false;
 
+LedControl segDisplay = LedControl(11, 13, 10, 1);
+
 // put your setup code here, to run once:
 void setup() {
   // LEDs
@@ -37,28 +40,34 @@ void setup() {
 
   // MOTOR
   servo.attach(SERVO_PIN);
+
+  // SHIFTREGISTER + SEGMENT-DISPLAY
+  segDisplay.shutdown(0, false);
+  segDisplay.setIntensity(0, 12);
+  segDisplay.clearDisplay(0);
 }
 
 // put your main code here, to run repeatedly:
 void loop() {
   readRemote();
   handleBlinkers();
+
   //startServo();
-
-  /* Serial.print("Temperature: ");
-  Serial.print(measureTemp());
-  Serial.println(" °C"); */
-
-  /* Serial.print("Lightlevel: ");
-  Serial.println(measureLight()); */
-
 
   /* digitalWrite(6, HIGH);
   delay(4000);
   digitalWrite(6, LOW);
   delay(1000); */
+
+  segDisplay.setDigit(0, 0, 8, false);
+  segDisplay.setDigit(0, 1, 8, true);
+  segDisplay.setDigit(0, 2, 8, false);
+  segDisplay.setDigit(0, 3, 8, false);
 }
 
+void geTime() {
+  
+}
 
 void readRemote() {
   // FERNBEDIENUNG
@@ -96,10 +105,15 @@ void readRemote() {
 
         case 22:
           Serial.println("1");
+          Serial.print("Temperature: ");
+          Serial.print(measureTemp());
+          Serial.println(" °C");
           break;
 
         case 25:
           Serial.println("2");
+          Serial.print("Lightlevel: ");
+          Serial.println(measureLight());
           break;
 
         case 13:
@@ -198,8 +212,8 @@ void startServo() {
   servolevel = map(widerstandslevel, 0, 1023, 5, 175);
   servo.write(servolevel);
 
-  //Serial.print("Resistor level: ");
-  //Serial.println(widerstandslevel);
+  Serial.print("Resistor level: ");
+  Serial.println(widerstandslevel);
 
   delay(20);
 }
