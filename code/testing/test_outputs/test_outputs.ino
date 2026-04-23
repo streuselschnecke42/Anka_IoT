@@ -15,6 +15,10 @@
 #define ADC_VREF_mV 5000.0
 #define ADC_RESOLUTION 1024.0
 
+#define LIMIT_TWO 2
+#define LIMIT_NINE 9
+#define LIMIT_FIVE 5
+
 Servo servo;
 
 int widerstandslevel;
@@ -23,7 +27,18 @@ int LEDPins[] = {3, 5, 6, 7, 8};
 bool blinkerLON = false;
 bool blinkerRON = false;
 
+int segValues[] = {0, 0, 0, 0};
+int cachedValues[] = {0, 0, 0, 0};
+int currentSlot = 0;
+int currentSegValue = 0;
+bool valueChanged = false;
+bool segIsOn = false;
+bool calibrationActive = false;
 LedControl segDisplay = LedControl(11, 13, 10, 1);
+long msPassed = 0;
+int secondsPassed = 0;
+
+int tmpint = 0;
 
 // put your setup code here, to run once:
 void setup() {
@@ -41,15 +56,18 @@ void setup() {
   // MOTOR
   servo.attach(SERVO_PIN);
 
-  // SHIFTREGISTER + SEGMENT-DISPLAY
-  segDisplay.shutdown(0, false);
-  segDisplay.setIntensity(0, 12);
-  segDisplay.clearDisplay(0);
+  // SEGMENT-DISPLAY -> LIGHT INTENSITY
+  segDisplay.setIntensity(0, 15);
 }
 
 // put your main code here, to run repeatedly:
 void loop() {
-  readRemote();
+  if (!calibrationActive) {
+    readRemote();
+    checkTimer();
+  } else {
+    calibrateTime();
+  }
   handleBlinkers();
 
   //startServo();
@@ -59,14 +77,206 @@ void loop() {
   digitalWrite(6, LOW);
   delay(1000); */
 
-  segDisplay.setDigit(0, 0, 8, false);
+  /* segDisplay.setDigit(0, 0, 8, false);
   segDisplay.setDigit(0, 1, 8, true);
   segDisplay.setDigit(0, 2, 8, false);
-  segDisplay.setDigit(0, 3, 8, false);
+  segDisplay.setDigit(0, 3, 8, false); */
+
 }
 
-void geTime() {
+// CHECK IF ONE SECOND HAS PASSED -> UPDATE SEG DISPLAY
+void checkTimer() {
+  if (millis() - msPassed >= 1000) {
+    msPassed = millis();
+    secondsPassed++;
+    updateSegValues();
+    if (segIsOn) {
+      updateSeg(segValues);
+    }
+  }
+}
+
+void updateSegValues() {
   
+  if (segValues[3] == LIMIT_NINE) {
+    if (segValues[2] == LIMIT_FIVE) {
+      if (segValues[1] == LIMIT_NINE) {
+
+        // e.g. 23:59 -> 00:00
+        if (segValues[0] == LIMIT_TWO) {
+          memset(segValues, 0, sizeof(segValues));
+          return;
+        }
+        // e.g. 19:59
+        tmpint = segValues[0];
+        tmpint++;
+        Serial.println(tmpint);
+        memset(segValues, 0, sizeof(segValues));
+        segValues[0] = tmpint;
+        Serial.println(segValues[0]);
+        return;
+      }
+      // e.g. 11:59
+      segValues[3] = 0;
+      segValues[2] = 0;
+      segValues[1]++;
+      return;
+    }
+    // e.g. 11:19
+    segValues[3] = 0;
+    segValues[2]++;
+    return;
+  }
+  // e.g. 11:11
+  segValues[3]++;
+  return;
+}
+
+void updateSeg(int currVals[]) {
+  // SLOT WITH CLOCK VALUE SEPARATOR (1) -> DP LAMP NEEDED
+  for (int i = 0; i < 4; i++) {
+    if (i == 1) {
+      segDisplay.setDigit(0, i, currVals[i], true);
+    } else {
+      segDisplay.setDigit(0, i, currVals[i], false);
+    }
+  }
+}
+
+void calibrateTime() {
+  if (IrReceiver.decode()) {
+    // NO REPEAT READS
+    if (!(IrReceiver.decodedIRData.flags & IRDATA_FLAGS_IS_REPEAT)) {
+      switch (IrReceiver.decodedIRData.command) {
+        case 68:
+          // GO BACK ONE SLOT; CONFIGURE PREV SLOT
+          if (currentSlot > 0) {
+            currentSlot --;
+            Serial.print("INFO: Current Slot set to: ");
+            Serial.println(currentSlot);
+          } else {
+            Serial.println("ERROR: Current slot already 0");
+          }
+          break;
+
+        // CONFIRM -> OK BUTTON
+        case 64:
+          calibrationActive = false;
+          delay(900);
+          Serial.println("INFO: Clock calibrated.");
+          break;
+
+        // GO FORWARD ONE SLOT; CONFIGURE NEXT SLOT
+        case 67:
+          if (currentSlot < 3) {
+            currentSlot ++;
+            Serial.print("INFO: Current Slot set to: ");
+            Serial.println(currentSlot);
+          } else {
+            Serial.println("ERROR: Current slot already 3");
+          }
+          break;
+
+        // SET CURRENT SLOT TO VALUE 1
+        case 22:
+          currentSegValue = 1;
+          valueChanged = true;
+          break;
+
+        // SET CURRENT SLOT TO VALUE 2
+        case 25:
+          currentSegValue = 2;
+          valueChanged = true;
+          break;
+
+        case 13:
+          currentSegValue = 3;
+          valueChanged = true;
+          break;
+
+        case 12:
+          currentSegValue = 4;
+          valueChanged = true;
+          break;
+
+        case 24:
+          currentSegValue = 5;
+          valueChanged = true;
+          break;
+
+        case 94:
+          currentSegValue = 6;
+          valueChanged = true;
+          break;
+
+        case 8:
+          currentSegValue = 7;
+          valueChanged = true;
+          break;
+
+        case 28:
+          currentSegValue = 8;
+          valueChanged = true;
+          break;
+
+        case 90:
+          currentSegValue = 9;
+          valueChanged = true;
+          break;
+        
+        case 82:
+          currentSegValue = 0;
+          valueChanged = true;
+          break;
+
+        // CANCEL CLOCK CALIBRATION -> RESET VALUES TO CACHED ARRAY
+        case 66:
+          Serial.println("INFO: Clock calibration cancelled. Clock reset to previous state.");
+          calibrationActive = false;
+          
+          for (int i = 0; i < 4; i++) {
+            segValues[i] = cachedValues[i];
+          }
+          updateSeg(cachedValues);
+          break;
+
+        // TODO: remove break; in every number key and have additional
+        //       case for all number keys to set value flag valueChanged to true
+
+        default:
+          Serial.println("WARNING: Invalid key!");
+          break;
+      }
+      //Serial.println(IrReceiver.decodedIRData.command); // spams; dont uncomment
+    }
+    IrReceiver.resume();
+  }
+
+  // UPDATE VALUE OF CURRENT SLOT
+  if (valueChanged) {
+
+    // SLOT WITH CLOCK VALUE SEPARATOR (1) -> DP LAMP NEEDED
+    if (currentSlot == 1) segDisplay.setDigit(0, currentSlot, currentSegValue, true);
+    else segDisplay.setDigit(0, currentSlot, currentSegValue, false);
+
+    // UPDATE ARRAY AND RESET VALUE FLAG
+    segValues[currentSlot] = currentSegValue;
+    valueChanged = false;
+  }
+}
+
+// SEGMENT DISPLAY ON; NO MATTER WHAT SegValues
+void segON() {
+  segDisplay.shutdown(0, false);
+  segDisplay.clearDisplay(0);
+  updateSeg(segValues);
+  segIsOn = true;
+}
+
+// SEGMENT DISPLAY OFF
+void segOFF() {
+  segDisplay.shutdown(0, true);
+  segIsOn = false;
 }
 
 void readRemote() {
@@ -76,84 +286,117 @@ void readRemote() {
     if (!(IrReceiver.decodedIRData.flags & IRDATA_FLAGS_IS_REPEAT)) {
       switch (IrReceiver.decodedIRData.command) {
         case 70:
-          Serial.println("UP");
+          Serial.println("WARNING: UP key unconfigured.");
           break;
 
         case 68:
-          Serial.println("LEFT");
+          //Serial.println("LEFT");
           blinkerRON = false;
           blinkerLON = !blinkerLON;
+
+          if (blinkerLON) {
+            Serial.println("INFO: Left blinker ON");
+          } else {
+            Serial.println("INFO: Left blinker OFF");
+          }
+
           break;
 
         // INITIATE ALL
         case 64:
-          Serial.println("OK");
           if (!blinkerLON && !blinkerRON) {
+            Serial.println("INFO: LED test active.");
             wave();
           }
           break;
 
         case 67:
-          Serial.println("RIGHT");
+          //Serial.println("RIGHT");
           blinkerLON = false;
           blinkerRON = !blinkerRON;
+
+          if (blinkerRON) {
+            Serial.println("INFO: Right blinker ON");
+          } else {
+            Serial.println("INFO: Right blinker OFF");
+          }
+
           break;
 
         case 21:
-          Serial.println("DOWN");
+          Serial.println("WARNING: DOWN key unconfigured.");
           break;
 
         case 22:
-          Serial.println("1");
-          Serial.print("Temperature: ");
+          //Serial.println("1");
+          Serial.print("INFO: Temperature: ");
           Serial.print(measureTemp());
           Serial.println(" °C");
           break;
 
         case 25:
-          Serial.println("2");
-          Serial.print("Lightlevel: ");
+          //Serial.println("2");
+          Serial.print("INFO: Lightlevel: ");
           Serial.println(measureLight());
           break;
 
         case 13:
-          Serial.println("3");
+          Serial.println("WARNING: 3 key unconfigured.");
           break;
 
         case 12:
-          Serial.println("4");
+          Serial.println("WARNING: 4 key unconfigured.");
           break;
 
         case 24:
-          Serial.println("5");
+          Serial.println("WARNING: 5 key unconfigured.");
           break;
 
         case 94:
-          Serial.println("6");
+          Serial.println("WARNING: 6 key unconfigured.");
           break;
 
         case 8:
-          Serial.println("7");
+          Serial.println("WARNING: 7 key unconfigured.");
           break;
 
         case 28:
-          Serial.println("8");
+          Serial.println("WARNING: 8 key unconfigured.");
           break;
 
         case 90:
-          Serial.println("9");
+          Serial.println("WARNING: 9 key unconfigured.");
           break;
 
         case 66:
-          Serial.println("*");
+          // COPY CACHED VALUES & CONFIGURE SEG DISPLAY
+          if (segIsOn) {
+            Serial.println("INFO: Time calibrator active.");
+            calibrationActive = true;
+            for (int i = 0; i < 4; i++) {
+              cachedValues[i] = segValues[i];
+            }
+          
+          // CLOCK INACTIVE -> NO VISUAL CONFIGURATION POSSIBLE
+          } else {
+            Serial.println("ERROR: Clock inactive.");
+          }
           break;
 
         case 82:
-          Serial.println("0");
+          if (!segIsOn) {
+            Serial.println("INFO: Clock active.");
+            segON();
+          } else {
+            Serial.println("INFO: Clock inactive.");
+            segOFF();
+          }
           break;
 
         case 74:
-          Serial.println("#");
+          Serial.println("INFO: Clock reset.");
+          memset(segValues, 0, sizeof(segValues));
+          updateSeg(segValues);
           break;
 
         default:
@@ -174,10 +417,9 @@ void handleBlinkers() {
   } else if (blinkerRON) {
     digitalWrite(BLINKER_LINKS, LOW);
     blink(BLINKER_RECHTS);
-
   }
   /* if (!blinkerRON && !blinkerLON) {
-    Serial.println("both blinkers off");
+    Serial.println("both blinkers off"); // spams; dont uncomment
   } */
 }
 
@@ -192,7 +434,7 @@ void wave() {
   // WAVE AROUND THE FAKE CAR
   for (int pin : LEDPins) {
     digitalWrite(pin, HIGH);
-    delay(100);
+    delay(100); // uncomment for wave
     digitalWrite(pin, LOW);
   }
 }
