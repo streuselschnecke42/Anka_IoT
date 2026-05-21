@@ -71,17 +71,25 @@ void loop() {
   handleBlinkers();
 
   //startServo();
+}
 
-  /* digitalWrite(6, HIGH);
-  delay(4000);
-  digitalWrite(6, LOW);
-  delay(1000); */
-
-  /* segDisplay.setDigit(0, 0, 8, false);
-  segDisplay.setDigit(0, 1, 8, true);
-  segDisplay.setDigit(0, 2, 8, false);
-  segDisplay.setDigit(0, 3, 8, false); */
-
+// THIS IS BECAUSE IM LAZY AND HAVE SHIT MEMORY
+// FORCES USER TO USE CORRECT FORMAT FOR PARSER
+void logger(
+  const char* msgtype, const char* module, const char* type, 
+  const char* subtype, const char* status, const int slot, 
+  const float value, const char* mode, const char* modeinfo) {
+    // TEMPLATE 
+    // logger("msgtype", "module", "type", "suptype", "status", intSlot, floatValue, "mode", "modeinfo");
+    Serial.print(msgtype);Serial.print(":");
+    Serial.print(module);Serial.print(":");
+    Serial.print(type);Serial.print(":");
+    Serial.print(subtype);Serial.print(":");
+    Serial.print(status);Serial.print(":");
+    Serial.print(slot);Serial.print(":");
+    Serial.print(value);Serial.print(":");
+    Serial.print(mode);Serial.print(":");
+    Serial.println(modeinfo);
 }
 
 // CHECK IF ONE SECOND HAS PASSED -> UPDATE SEG DISPLAY
@@ -110,10 +118,10 @@ void updateSegValues() {
         // e.g. 19:59
         tmpint = segValues[0];
         tmpint++;
-        Serial.println(tmpint);
+        //Serial.println(tmpint);
         memset(segValues, 0, sizeof(segValues));
         segValues[0] = tmpint;
-        Serial.println(segValues[0]);
+        //Serial.println(segValues[0]);
         return;
       }
       // e.g. 11:59
@@ -152,28 +160,36 @@ void calibrateTime() {
           // GO BACK ONE SLOT; CONFIGURE PREV SLOT
           if (currentSlot > 0) {
             currentSlot --;
-            Serial.print("INFO: Current Slot set to: ");
-            Serial.println(currentSlot);
+            logger("INFO", "CLOCK", "DISPLAY", "", "ON", currentSlot, -1, "CALIBRATION_MODE", "BACK");
+            /* Serial.print("INFO:CLOCK:CALIBRATION_MODE:");
+            Serial.println(currentSlot); */
+
+          // Current slot already AT MIN
           } else {
-            Serial.println("ERROR: Current slot already 0");
+            logger("ERROR", "CLOCK", "DISPLAY", "", "ON", currentSlot, -1, "CALIBRATION_MODE", "MIN");
+            //Serial.println("ERROR:CLOCK:CALIBRATION_MODE:SLOT:MIN"); 
           }
           break;
 
-        // CONFIRM -> OK BUTTON
+        // CONFIRM -> OK BUTTON (CLOCK GOT CALIBRATED)
         case 64:
           calibrationActive = false;
           delay(900);
-          Serial.println("INFO: Clock calibrated.");
+          logger("INFO", "CLOCK", "DISPLAY", "", "ON", currentSlot, -1, "NORMAL", "CONFIRMED");
           break;
 
         // GO FORWARD ONE SLOT; CONFIGURE NEXT SLOT
         case 67:
           if (currentSlot < 3) {
             currentSlot ++;
-            Serial.print("INFO: Current Slot set to: ");
-            Serial.println(currentSlot);
+            logger("INFO", "CLOCK", "DISPLAY", "", "ON", currentSlot, -1, "CALIBRATION_MODE", "FORWARD");
+            /* Serial.print("INFO:CLOCK:CALIBRATION_MODE:SLOT:");
+            Serial.println(currentSlot); */
+
+          // Current slot already END
           } else {
-            Serial.println("ERROR: Current slot already 3");
+            logger("ERROR", "CLOCK", "DISPLAY", "", "ON", currentSlot, -1, "CALIBRATION_MODE", "MAX");
+            //Serial.println("ERROR:CLOCK:CALIBRATION_MODE:SLOT:MAX"); 
           }
           break;
 
@@ -231,7 +247,9 @@ void calibrateTime() {
 
         // CANCEL CLOCK CALIBRATION -> RESET VALUES TO CACHED ARRAY
         case 66:
-          Serial.println("INFO: Clock calibration cancelled. Clock reset to previous state.");
+          logger("ERROR", "CLOCK", "DISPLAY", "", "ON", currentSlot, -1, "CALIBRATION_MODE", "CANCELLED");
+          //Serial.println("INFO:CLOCK:CALIBRATION_MODE:CANCELLED");
+          //Serial.println("INFO: Clock reset to previous state")
           calibrationActive = false;
           
           for (int i = 0; i < 4; i++) {
@@ -244,7 +262,8 @@ void calibrateTime() {
         //       case for all number keys to set value flag valueChanged to true
 
         default:
-          Serial.println("WARNING: Invalid key!");
+        logger("WARNING", "REMOTE", "KEY", "UNKOWN", "", -1, -1, "CLOCK_CALIBRATION", "");
+          //Serial.println("WARNING:REMOTE:UNKOWN"); // UNKNWON REMOTE KEY
           break;
       }
       //Serial.println(IrReceiver.decodedIRData.command); // spams; dont uncomment
@@ -286,7 +305,9 @@ void readRemote() {
     if (!(IrReceiver.decodedIRData.flags & IRDATA_FLAGS_IS_REPEAT)) {
       switch (IrReceiver.decodedIRData.command) {
         case 70:
-          Serial.println("WARNING: UP key unconfigured.");
+          // TODO: FRONTLIGHT
+          logger("WARNING", "REMOTE", "KEY", "UP", "UNCONFIGURED", -1, -1, "MAIN", "");
+          //Serial.println("WARNING:REMOTE:UP:UNCONFIGURED");
           break;
 
         case 68:
@@ -295,9 +316,11 @@ void readRemote() {
           blinkerLON = !blinkerLON;
 
           if (blinkerLON) {
-            Serial.println("INFO: Left blinker ON");
+            logger("INFO", "REMOTE", "KEY", "UP", "UNCONFIGURED", -1, -1, "MAIN", "");
+            //Serial.println("INFO:BLINKER:LEFT:ON");
           } else {
-            Serial.println("INFO: Left blinker OFF");
+            logger("INFO", "LED", "BLINKER", "LEFT", "OFF", -1, -1, "", "");
+            //Serial.println("INFO:BLINKER:LEFT:OFF");
           }
 
           break;
@@ -305,7 +328,8 @@ void readRemote() {
         // INITIATE ALL
         case 64:
           if (!blinkerLON && !blinkerRON) {
-            Serial.println("INFO: LED test active.");
+            logger("INFO", "LED", "ALL", "ALL", "TEST", -1, -1, "BLINKERTEST", "ACTIVE");
+            //Serial.println("INFO:LED:TEST:ACTIVE");
             wave();
           }
           break;
@@ -316,62 +340,76 @@ void readRemote() {
           blinkerRON = !blinkerRON;
 
           if (blinkerRON) {
-            Serial.println("INFO: Right blinker ON");
+            logger("INFO", "LED", "BLINKER", "RIGHT", "ON", -1, -1, "", "");
+            //Serial.println("INFO:BLINKER:RIGHT:ON");
           } else {
-            Serial.println("INFO: Right blinker OFF");
+            logger("INFO", "LED", "BLINKER", "RIGHT", "OFF", -1, -1, "", "");
+            //Serial.println("INFO:BLINKER:RIGHT:OFF");
           }
 
           break;
 
         case 21:
-          Serial.println("WARNING: DOWN key unconfigured.");
+          // TODO: BREAKLIGHT
+          logger("WARNING", "REMOTE", "KEY", "DOWN", "UNCONFIGURED", -1, -1, "", "");
+          //Serial.println("WARNING:REMOTE:DOWN:UNCONFIGURED");
           break;
 
         case 22:
           //Serial.println("1");
-          Serial.print("INFO: Temperature: ");
-          Serial.print(measureTemp());
-          Serial.println(" °C");
+          logger("INFO", "SENSOR", "TEMPERATURE", "", "MEASURING", -1, measureTemp(), "", "");
+          /* Serial.print("INFO:SENSOR:TEMPERATURE:");
+          Serial.println(measureTemp()); */
+          //Serial.println(" °C");
           break;
 
         case 25:
           //Serial.println("2");
-          Serial.print("INFO: Lightlevel: ");
-          Serial.println(measureLight());
+          logger("INFO", "SENSOR", "LIGHTLEVEL", "", "MEASURING", -1, measureLight(), "", "");
+          /* Serial.print("INFO:LIGHTLEVEL:");
+          Serial.println(measureLight()); */
           break;
 
         case 13:
-          Serial.println("WARNING: 3 key unconfigured.");
+          logger("WARNING", "REMOTE", "KEY", "3", "UNCONFIGURED", -1, -1, "", "");
+          //Serial.println("WARNING:REMOTE:3:UNCONFIGURED");
           break;
 
         case 12:
-          Serial.println("WARNING: 4 key unconfigured.");
+          logger("WARNING", "REMOTE", "KEY", "4", "UNCONFIGURED", -1, -1, "", "");
+          //Serial.println("WARNING:REMOTE:4:UNCONFIGURED");
           break;
 
         case 24:
-          Serial.println("WARNING: 5 key unconfigured.");
+          logger("WARNING", "REMOTE", "KEY", "5", "UNCONFIGURED", -1, -1, "", "");
+          //Serial.println("WARNING:REMOTE:5:UNCONFIGURED");
           break;
 
         case 94:
-          Serial.println("WARNING: 6 key unconfigured.");
+          logger("WARNING", "REMOTE", "KEY", "6", "UNCONFIGURED", -1, -1, "", "");
+          //Serial.println("WARNING:REMOTE:6:UNCONFIGURED");
           break;
 
         case 8:
-          Serial.println("WARNING: 7 key unconfigured.");
+          logger("WARNING", "REMOTE", "KEY", "7", "UNCONFIGURED", -1, -1, "", "");
+          //Serial.println("WARNING:REMOTE:7:UNCONFIGURED");
           break;
 
         case 28:
-          Serial.println("WARNING: 8 key unconfigured.");
+          logger("WARNING", "REMOTE", "KEY", "8", "UNCONFIGURED", -1, -1, "", "");
+          //Serial.println("WARNING:REMOTE:8:UNCONFIGURED");
           break;
 
         case 90:
-          Serial.println("WARNING: 9 key unconfigured.");
+          logger("WARNING", "REMOTE", "KEY", "9", "UNCONFIGURED", -1, -1, "", "");
+          //Serial.println("WARNING:REMOTE:9:UNCONFIGURED");
           break;
 
         case 66:
-          // COPY CACHED VALUES & CONFIGURE SEG DISPLAY
+          // CACHE VALUES & CONFIGURE SEG DISPLAY
           if (segIsOn) {
-            Serial.println("INFO: Time calibrator active.");
+            logger("INFO", "CLOCK", "DISPLAY", "", "ON", 0, -1, "CALIBRATION_MODE", "ACTIVATED");
+            //Serial.println("INFO:CLOCK:CALIBRATION_MODE:ACTIVE");
             calibrationActive = true;
             for (int i = 0; i < 4; i++) {
               cachedValues[i] = segValues[i];
@@ -379,22 +417,26 @@ void readRemote() {
           
           // CLOCK INACTIVE -> NO VISUAL CONFIGURATION POSSIBLE
           } else {
-            Serial.println("ERROR: Clock inactive.");
+            logger("ERROR", "CLOCK", "DISPLAY", "", "OFF", -1, -1, "", "");
+            //Serial.println("ERROR:CLOCK:DISPLAY:OFF");
           }
           break;
 
         case 82:
           if (!segIsOn) {
-            Serial.println("INFO: Clock active.");
+            logger("INFO", "CLOCK", "DISPLAY", "", "ON", 0, -1, "NORMAL", "");
+            //Serial.println("INFO:CLOCK:ON");
             segON();
           } else {
-            Serial.println("INFO: Clock inactive.");
+            logger("INFO", "CLOCK", "DISPLAY", "", "OFF", -1, -1, "", "");
+            //Serial.println("INFO:CLOCK:OFF");
             segOFF();
           }
           break;
 
         case 74:
-          Serial.println("INFO: Clock reset.");
+          logger("INFO", "CLOCK", "DISPLAY", "", "ON", 0, -1, "NORMAL", "RESET");
+          //Serial.println("INFO:CLOCK:RESET");
           memset(segValues, 0, sizeof(segValues));
           updateSeg(segValues);
           break;
@@ -454,8 +496,9 @@ void startServo() {
   servolevel = map(widerstandslevel, 0, 1023, 5, 175);
   servo.write(servolevel);
 
-  Serial.print("Resistor level: ");
-  Serial.println(widerstandslevel);
+  logger("INFO", "SERVO", "RESISTORLEVEL", "", "ON", -1, widerstandslevel, "", "");
+  /* Serial.print("Resistor level: ");
+  Serial.println(widerstandslevel); */
 
   delay(20);
 }
