@@ -467,8 +467,10 @@ void handleBlinkers() {
     digitalWrite(BLINKER_LINKS, LOW);
     blink(BLINKER_RECHTS);
   }
+
+  // FOR DEBUGGING PURPOSE ONLY! SPAMS A LOT!
   /* if (!blinkerRON && !blinkerLON) {
-    Serial.println("both blinkers off"); // spams; dont uncomment
+    Serial.println("both blinkers off");
   } */
 }
 
