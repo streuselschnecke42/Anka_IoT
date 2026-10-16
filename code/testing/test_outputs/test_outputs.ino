@@ -112,14 +112,21 @@ void updateSegValues() {
 
         // e.g. 23:59 -> 00:00
         if (segValues[0] == LIMIT_TWO) {
-          memset(segValues, 0, sizeof(segValues));
+          //memset(segValues, 0, sizeof(segValues));
+          segValues[0] = 0;
+          segValues[1] = 0;
+          segValues[2] = 0;
+          segValues[3] = 0;
           return;
         }
         // e.g. 19:59
         tmpint = segValues[0];
         tmpint++;
         //Serial.println(tmpint);
-        memset(segValues, 0, sizeof(segValues));
+        //memset(segValues, 0, sizeof(segValues));
+        segValues[1] = 0;
+        segValues[2] = 0;
+        segValues[3] = 0;
         segValues[0] = tmpint;
         //Serial.println(segValues[0]);
         return;
